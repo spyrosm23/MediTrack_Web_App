@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <title>MediTrack - Γραμματεία / Υποδοχή</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        :root { 
+            --bg-dark: #0f0b14; 
+            --bg-panel: #160a20;
+            --sidebar: rgba(30, 15, 42, 0.6); 
+            --card-bg: rgba(41, 30, 59, 0.4); 
+            --text-main: #f8fafc;
+            --text-muted: #cbd5e1;
+            --primary: #c084fc; 
+            --primary-glow: rgba(192, 132, 252, 0.4);
+            --border-color: rgba(81, 51, 85, 0.5);
+            --danger: #ef4444;
+            --success: #10b981;
+            --warning: #f59e0b;
+        }
+
+        * { box-sizing: border-box; }
+        body { font-family: 'Outfit', sans-serif; background: radial-gradient(circle at top left, #231236, var(--bg-dark)); color: var(--text-main); margin: 0; display: flex; height: 100vh; overflow: hidden; letter-spacing: 0.3px; }
+        ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-thumb { background: rgba(192, 132, 252, 0.2); border-radius: 10px; }
+        
+        .sidebar { width: 350px; background: var(--sidebar); backdrop-filter: blur(10px); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; overflow-y: auto; box-shadow: 5px 0 20px rgba(0,0,0,0.3); padding: 25px;}
+        .main { flex: 1; padding: 40px; overflow-y: auto; }
+        
+        h2, h3 { color: var(--primary); margin-top: 0; }
+        input, select, textarea { width: 100%; padding: 14px; margin: 8px 0 16px 0; background: rgba(15, 23, 42, 0.7); color: white; border: 1px solid var(--border-color); border-radius: 12px; font-family: inherit; }
+        input:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 15px var(--primary-glow); }
+        
+        button { background: linear-gradient(135deg, var(--primary), #9333ea); color: #fff; border: none; padding: 12px 20px; border-radius: 10px; cursor: pointer; font-weight: 600; transition: all 0.3s; box-shadow: 0 4px 15px var(--primary-glow); width: 100%;}
+        button:hover { transform: translateY(-2px); filter: brightness(1.1); }
+
+        .patient-card { background: var(--card-bg); padding: 20px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .tabs { display: flex; gap: 15px; margin-bottom: 30px; border-bottom: 1px solid var(--border-color); padding-bottom: 15px;}
+        .tab-btn { background: transparent; box-shadow: none; border: 1px solid var(--primary); color: var(--primary); width: auto; border-radius: 20px; }
+        .tab-btn.active { background: var(--primary); color: white; box-shadow: 0 4px 15px var(--primary-glow); }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h2><i class="fa-solid fa-desktop"></i> Υποδοχή</h2>
+        <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 30px;">Σύστημα Διαχείρισης Εισαγωγών</p>
+
+        <div style="background: rgba(0,0,0,0.2); padding: 20px; border-radius: 15px; border: 1px solid var(--border-color);">
+            <h3><i class="fa-solid fa-user-plus"></i> Νέα Εισαγωγή</h3>
+            <input type="text" id="new-id" placeholder="Κωδικός Ασθενή (ID)">
+            <input type="text" id="new-name" placeholder="Ονοματεπώνυμο">
+            <input type="text" id="new-room" placeholder="Θάλαμος / Κλίνη">
+            <textarea id="new-reason" placeholder="Αιτία Εισαγωγής" rows="2"></textarea>
+            
+            <label style="font-size: 14px; color: var(--text-muted);">Ανάθεση σε Θεράποντα Ιατρό:</label>
+            <select id="doctor-select">
+                <option value="">Φόρτωση ιατρών...</option>
+            </select>
+
+            <button onclick="prosthikiAstheni()"><i class="fa-solid fa-file-medical"></i> Ολοκλήρωση Εισαγωγής</button>
+        </div>
+    </div>
+
+    <div class="main">
+        <div class="tabs">
+            <button id="tab-active" class="tab-btn active" onclick="emfanisiKartelas('active')"><i class="fa-solid fa-users"></i> Ενεργοί Ασθενείς & Εξιτήρια</button>
+            <button id="tab-archive" class="tab-btn" onclick="emfanisiKartelas('archive')"><i class="fa-solid fa-box-archive"></i> Ιστορικό (Πρώην Ασθενείς)</button>
+            <button id="tab-doctors" class="tab-btn" onclick="emfanisiKartelas('doctors')"><i class="fa-solid fa-user-doctor"></i> Διαχείριση Ιατρών</button>
+        </div>
+
+        <div id="active-patients-list">
+        </div>
+
+        <div id="archive-patients-list" style="display: none;">
+        </div>
+
+        <div id="doctors-management" style="display: none;">
+            <div style="display: flex; flex-direction: column; gap: 30px;">
+                
+                <div class="patient-card" style="flex-direction: column; align-items: flex-start;">
+                    <h3 style="color: var(--primary); margin-bottom: 20px;"><i class="fa-solid fa-plus-circle"></i> Δημιουργία Λογαριασμού Ιατρού</h3>
+                    
+                    <input type="text" id="new-doc-name" placeholder="Ονοματεπώνυμο (π.χ. Δρ. Παπαδόπουλος)">
+                    <input type="email" id="new-doc-email" placeholder="Email Εισόδου (π.χ. doc@hospital.com)">
+                    <input type="password" id="new-doc-pass" placeholder="Κωδικός (Τουλάχιστον 6 χαρακτήρες)">
+                    
+                    <button onclick="prosthikiGiatrou()" style="background: linear-gradient(135deg, var(--success), #059669); box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4); margin-top: 10px;">
+                        <i class="fa-solid fa-save"></i> Δημιουργία & Αποθήκευση
+                    </button>
+                </div>
+
+                <div class="patient-card" style="flex-direction: column; align-items: stretch; background: rgba(0,0,0,0.2);">
+                    <h3 style="color: white; margin-bottom: 20px;"><i class="fa-solid fa-stethoscope"></i> Ενεργοί Ιατροί</h3>
+                    <div id="doctors-list" style="display: flex; flex-direction: column; gap: 10px;">
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const rythmiseisFirebase = {
+            apiKey: "YOUR_API_KEY_HERE",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket:"YOUR_PROJECT_ID.firebasestorage.app" ,
+            messagingSenderId:"YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+        
+        if (!firebase.apps.length) {
+            firebase.initializeApp(rythmiseisFirebase);
+        }
+        const vasiDedomonon = firebase.firestore();
+
+        function fortosiGiatron() {
+            vasiDedomonon.collection("doctors").onSnapshot(stigmiotipo => {
+                const epilogis = document.getElementById('doctor-select');
+                const listaGiatron = document.getElementById('doctors-list');
+                
+                epilogis.innerHTML = `<option value="">Επιλέξτε Ιατρό...</option>`;
+                listaGiatron.innerHTML = "";
+
+                stigmiotipo.forEach(eggrafo => {
+                    const dedomena = eggrafo.data();
+                    
+                    epilogis.innerHTML += `<option value="${eggrafo.id}">${dedomena.name}</option>`;
+                    
+                    listaGiatron.innerHTML += `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; border: 1px solid var(--border-color);">
+                            <div>
+                                <strong style="color: white;">${dedomena.name}</strong><br>
+                                <span style="font-size: 12px; color: var(--text-muted);">ID: ${eggrafo.id}</span>
+                            </div>
+                            <button onclick="diagrafiGiatrou('${eggrafo.id}', '${dedomena.name}')" style="width: auto; padding: 6px 12px; font-size: 12px; background: rgba(239, 68, 68, 0.2); color: var(--danger); border: 1px solid var(--danger); box-shadow: none;">
+                                <i class="fa-solid fa-trash"></i> Διαγραφή
+                            </button>
+                        </div>
+                    `;
+                });
+            });
+        }
+        
+        fortosiGiatron();
+
+        function prosthikiAstheni() {
+            const kodikosAstheni = document.getElementById('new-id').value;
+            const kodikosGiatrou = document.getElementById('doctor-select').value;
+            if(!kodikosAstheni || !kodikosGiatrou) return alert("Συμπληρώστε υποχρεωτικά ID και Ιατρό!");
+
+            const dedomenaAstheni = {
+                name: document.getElementById('new-name').value,
+                room: document.getElementById('new-room').value,
+                reason: document.getElementById('new-reason').value,
+                doctorId: kodikosGiatrou,
+                isActive: true, 
+                dischargeRequested: false 
+            };
+
+            vasiDedomonon.collection("patients").doc(kodikosAstheni).set(dedomenaAstheni, { merge: true }).then(() => {
+                alert("Η Εισαγωγή Ολοκληρώθηκε Επιτυχώς!");
+                document.getElementById('new-id').value = "";
+                document.getElementById('new-name').value = "";
+                document.getElementById('new-room').value = "";
+                document.getElementById('new-reason').value = "";
+                document.getElementById('doctor-select').value = "";
+            });
+        }
+
+        vasiDedomonon.collection("patients").onSnapshot(stigmiotipo => {
+            const listaEnergon = document.getElementById('active-patients-list');
+            const listaArxeiou = document.getElementById('archive-patients-list');
+            listaEnergon.innerHTML = "";
+            listaArxeiou.innerHTML = "";
+
+            stigmiotipo.forEach(eggrafo => {
+                const asthenis = eggrafo.data();
+                
+                if (asthenis.isActive !== false) {
+                    let koumpiEnergeias = asthenis.dischargeRequested 
+                        ? `<div style="display: flex; flex-direction: column; gap: 8px;">
+                                <button style="font-size: 13px; padding: 8px 12px; background: linear-gradient(135deg, var(--danger), #b91c1c);" onclick="oristikoEksitirio('${eggrafo.id}')">
+                                    <i class="fa-solid fa-file-export"></i> Έγκριση
+                                </button>
+                                <button style="font-size: 13px; padding: 8px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--text-muted); color: var(--text-main); box-shadow: none;" onclick="aporripsiEksitiriou('${eggrafo.id}')">
+                                    <i class="fa-solid fa-ban"></i> Απόρριψη
+                                </button>
+                           </div>`
+                        : `<span style="color: var(--success); font-size: 14px;"><i class="fa-solid fa-bed"></i> Νοσηλεύεται</span>`;
+
+                    listaEnergon.innerHTML += `
+                        <div class="patient-card" style="${asthenis.dischargeRequested ? 'border: 1px solid var(--warning); box-shadow: 0 0 15px rgba(245, 158, 11, 0.2);' : ''}">
+                            <div>
+                                <h3 style="margin:0; color: white;">${asthenis.name} <span style="font-size:14px; color:var(--text-muted);">(ID: ${eggrafo.id})</span></h3>
+                                <p style="margin: 5px 0 0 0; color: var(--text-muted);">Δωμάτιο: ${asthenis.room} | Αιτία: ${asthenis.reason}</p>
+                            </div>
+                            <div>${koumpiEnergeias}</div>
+                        </div>`;
+                } 
+                else {
+                    listaArxeiou.innerHTML += `
+                        <div class="patient-card" style="opacity: 0.8; border-left: 4px solid var(--text-muted);">
+                            <div>
+                                <h3 style="margin:0; color: white;">${asthenis.name} <span style="font-size:14px; color:var(--text-muted);">(ID: ${eggrafo.id})</span></h3>
+                                <p style="margin: 5px 0 0 0; color: var(--text-muted);">Παλαιά Νοσηλεία: Δωμ. ${asthenis.room}</p>
+                            </div>
+                            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 10px;">
+                                <span style="color: var(--text-muted); font-size: 13px;"><i class="fa-solid fa-check-circle"></i> Αποχώρησε</span>
+                                <button style="font-size: 12px; padding: 8px 15px; background: linear-gradient(135deg, var(--primary), #9333ea); width: auto;" 
+                                    onclick="fortosiGiaEpaneisagogi('${eggrafo.id}', '${asthenis.name}', '${asthenis.room}', '${asthenis.reason}', '${asthenis.doctorId}')">
+                                    <i class="fa-solid fa-rotate-left"></i> Επανεισαγωγή
+                                </button>
+                            </div>
+                        </div>`;
+                }
+            });
+        });
+
+        function oristikoEksitirio(kodikosAstheni) {
+            if(confirm("Επιβεβαίωση Οριστικού Εξιτηρίου; Ο ασθενής θα μεταφερθεί στο αρχείο.")) {
+                vasiDedomonon.collection("patients").doc(kodikosAstheni).update({
+                    isActive: false, 
+                    dischargeRequested: false 
+                });
+            }
+        }
+
+        function aporripsiEksitiriou(kodikosAstheni) {
+            if(confirm("Θέλετε να ακυρώσετε το αίτημα εξιτηρίου του ιατρού; Ο ασθενής θα παραμείνει στο τμήμα.")) {
+                vasiDedomonon.collection("patients").doc(kodikosAstheni).update({
+                    dischargeRequested: false 
+                });
+            }
+        }
+
+        function fortosiGiaEpaneisagogi(kodikosAstheni, onoma, domatio, aitia, kodikosGiatrou) {
+            document.getElementById('new-id').value = kodikosAstheni;
+            document.getElementById('new-name').value = onoma;
+            document.getElementById('new-room').value = domatio; 
+            document.getElementById('new-reason').value = aitia;
+            document.getElementById('doctor-select').value = kodikosGiatrou || "";
+
+            alert(`✅ Τα στοιχεία του/της ${onoma} φορτώθηκαν στη φόρμα αριστερά.\n\nΜπορείτε να τροποποιήσετε τον θάλαμο, τον λόγο εισαγωγής ή τον ιατρό, και έπειτα να πατήσετε "Ολοκλήρωση Εισαγωγής".`);
+        }
+
+        const efarmogiDiaxeiristi = firebase.initializeApp(rythmiseisFirebase, "AdminApp");
+
+        function prosthikiGiatrou() {
+            const onomaGiatrou = document.getElementById('new-doc-name').value.trim();
+            const emailGiatrou = document.getElementById('new-doc-email').value.trim();
+            const kodikosProsvasis = document.getElementById('new-doc-pass').value.trim();
+
+            if (!onomaGiatrou || !emailGiatrou || !kodikosProsvasis) {
+                return alert("Παρακαλώ συμπληρώστε Όνομα, Email και Κωδικό!");
+            }
+            if (kodikosProsvasis.length < 6) {
+                return alert("Ο κωδικός πρόσβασης πρέπει να έχει τουλάχιστον 6 χαρακτήρες!");
+            }
+
+            efarmogiDiaxeiristi.auth().createUserWithEmailAndPassword(emailGiatrou, kodikosProsvasis)
+                .then((diapisteftiriaXristi) => {
+                    const neosKodikosGiatrou = diapisteftiriaXristi.user.uid; 
+                    return vasiDedomonon.collection("doctors").doc(neosKodikosGiatrou).set({ name: onomaGiatrou });
+                })
+                .then(() => {
+                    alert("✅ Ο λογαριασμός του Ιατρού δημιουργήθηκε επιτυχώς! Μπορεί πλέον να κάνει Login.");
+                    
+                    document.getElementById('new-doc-name').value = "";
+                    document.getElementById('new-doc-email').value = "";
+                    document.getElementById('new-doc-pass').value = "";
+                    
+                    efarmogiDiaxeiristi.auth().signOut(); 
+                })
+                .catch(sfalma => {
+                    alert("Σφάλμα δημιουργίας: " + sfalma.message);
+                    console.error(sfalma);
+                });
+        }
+
+        function diagrafiGiatrou(kodikos, onoma) {
+            if (confirm(`ΠΡΟΣΟΧΗ: Είστε σίγουρος ότι θέλετε να διαγράψετε τον ιατρό "${onoma}";\n\nΟι ασθενείς που του έχουν ανατεθεί δεν θα διαγραφούν, αλλά θα πρέπει να μεταφερθούν σε άλλον ιατρό.`)) {
+                vasiDedomonon.collection("doctors").doc(kodikos).delete()
+                    .then(() => alert("Ο ιατρός διεγράφη."))
+                    .catch(sfalma => alert("Σφάλμα διαγραφής: " + sfalma.message));
+            }
+        }
+
+        function emfanisiKartelas(kartela) {
+            document.getElementById('active-patients-list').style.display = kartela === 'active' ? 'block' : 'none';
+            document.getElementById('archive-patients-list').style.display = kartela === 'archive' ? 'block' : 'none';
+            document.getElementById('doctors-management').style.display = kartela === 'doctors' ? 'block' : 'none';
+            
+            document.getElementById('tab-active').classList.toggle('active', kartela === 'active');
+            document.getElementById('tab-archive').classList.toggle('active', kartela === 'archive');
+            document.getElementById('tab-doctors').classList.toggle('active', kartela === 'doctors');
+        }
+    </script>
+</body>
+</html>

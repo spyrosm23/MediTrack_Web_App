@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <title>MediTrack - Web Terminal</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+    
+    <style>
+        :root { 
+            --bg-dark: #050b14; 
+            --bg-panel: #0a1120;
+            --sidebar: rgba(15, 23, 42, 0.6); 
+            --card-bg: rgba(30, 41, 59, 0.4); 
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #38bdf8; 
+            --primary-glow: rgba(56, 189, 248, 0.4);
+            --primary-hover: #0284c7;
+            --border-color: rgba(51, 65, 85, 0.5);
+            --danger: #ef4444;
+            --success: #10b981;
+        }
+
+        * { box-sizing: border-box; }
+        body { 
+            font-family: 'Outfit', sans-serif; 
+            background: radial-gradient(circle at top left, #0d1b2a, var(--bg-dark)); 
+            color: var(--text-main); 
+            margin: 0; 
+            display: flex; 
+            height: 100vh; 
+            overflow: hidden;
+            letter-spacing: 0.3px;
+        }
+        
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(56, 189, 248, 0.2); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+        
+        #login-screen { 
+            position: fixed; inset: 0; 
+            background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
+            display: flex; align-items: center; justify-content: center; 
+            z-index: 1000; 
+        }
+        .login-card {
+            background: rgba(15, 23, 42, 0.5);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 50px 40px;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7), 0 0 30px rgba(56, 189, 248, 0.1);
+            text-align: center;
+            animation: fadeIn 0.8s ease-out;
+        }
+        .login-card h2 { margin-top: 0; margin-bottom: 35px; font-size: 28px; font-weight: 700; background: linear-gradient(to right, #fff, var(--primary)); -webkit-background-clip: text; color: transparent; }
+        .login-card input { text-align: center; }
+        .login-card button { width: 100%; font-size: 18px; padding: 16px; border-radius: 12px; margin-top: 20px; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        input, select, textarea { 
+            width: 100%; padding: 14px 16px; margin: 8px 0 16px 0; 
+            background: rgba(15, 23, 42, 0.7); 
+            color: white; 
+            border: 1px solid var(--border-color); 
+            border-radius: 12px; 
+            font-family: inherit;
+            transition: all 0.3s ease;
+        }
+        input:focus, select:focus, textarea:focus { 
+            outline: none; 
+            border-color: var(--primary); 
+            background: rgba(15, 23, 42, 0.9);
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.15);
+        }
+        
+        button { 
+            background: linear-gradient(135deg, var(--primary), #0284c7);
+            color: #fff; 
+            border: none; 
+            padding: 12px 20px; 
+            border-radius: 10px; 
+            cursor: pointer; 
+            font-weight: 600; 
+            transition: all 0.3s ease; 
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 15px var(--primary-glow);
+        }
+        button:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 8px 25px var(--primary-glow); 
+            filter: brightness(1.1);
+        }
+
+        .sidebar { 
+            width: 340px; 
+            background: var(--sidebar); 
+            backdrop-filter: blur(10px);
+            border-right: 1px solid var(--border-color); 
+            display: flex; flex-direction: column; 
+            overflow-y: auto;
+            box-shadow: 5px 0 20px rgba(0,0,0,0.3);
+        }
+        .sidebar h3, .sidebar h4 { padding: 25px 25px 10px 25px; margin: 0; color: var(--primary); font-size: 14px; text-transform: uppercase; letter-spacing: 1.5px;}
+        
+        .patient-item { 
+            padding: 18px 25px; 
+            cursor: pointer; 
+            transition: all 0.3s ease;
+            border-left: 4px solid transparent; 
+            display: flex;
+            align-items: center;
+            font-size: 16px;
+            color: var(--text-muted);
+        }
+        .patient-item:hover { 
+            background: rgba(255,255,255,0.03); 
+            color: var(--text-main);
+            padding-left: 30px; 
+        }
+        .patient-item.active {
+            background: linear-gradient(90deg, rgba(56, 189, 248, 0.1) 0%, transparent 100%);
+            border-left: 4px solid var(--primary);
+            color: var(--text-main);
+            font-weight: 600;
+        }
+        
+        .new-patient-form-container { padding: 25px; border-top: 1px solid var(--border-color); margin-top: auto; background: rgba(0,0,0,0.2);}
+        
+        .main { flex: 1; padding: 50px; overflow-y: auto; display: flex; flex-direction: column; gap: 30px; position: relative;}
+        
+        .card { 
+            background: var(--card-bg); 
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            padding: 30px; 
+            border-radius: 20px; 
+            border: 1px solid rgba(255, 255, 255, 0.05); 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease, border-color 0.3s ease;
+        }
+        .card:hover { border-color: rgba(56, 189, 248, 0.2); }
+
+        .header {
+            display: flex;
+            flex-direction: column;
+            padding-bottom: 25px;
+            border-bottom: 1px solid var(--border-color);
+            animation: fadeIn 0.5s ease-out;
+        }
+        .header h1 { margin: 0; font-size: 36px; font-weight: 700; color: #fff; }
+        .header p { margin: 10px 0 0 0; color: var(--text-muted); font-size: 16px; display: inline-flex; align-items: center; gap: 8px;}
+        .header p span { color: var(--primary); font-weight: 500; background: rgba(56,189,248,0.1); padding: 4px 12px; border-radius: 20px;}
+        
+        .vitals-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 25px; margin-top: 10px;}
+        .vitals-grid .card { display: flex; flex-direction: column; align-items: flex-start; position: relative; overflow: hidden;}
+        
+        .vitals-grid .card::before {
+            content: ''; position: absolute; top: -20px; right: -20px; width: 100px; height: 100px;
+            background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%); opacity: 0.5; border-radius: 50%;
+        }
+
+        .card h4 { font-size: 14px; color: var(--text-muted); margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1.5px;}
+        .card h2 { 
+            font-size: 42px; 
+            font-weight: 700; 
+            margin: 0; 
+            color: #fff; 
+            text-shadow: 0 0 20px rgba(255,255,255,0.2);
+        }
+
+        .section-label { font-size: 14px; color: var(--primary); text-transform: uppercase; letter-spacing: 1.5px; margin: 0 0 20px 0;}
+        
+        ul { list-style: none; padding: 0; margin: 0; }
+        li { padding: 15px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; transition: background 0.3s;}
+        li:hover { background: rgba(255,255,255,0.02); }
+        li:last-child { border-bottom: none; }
+        
+        @keyframes pulseAlert { 
+            0% { opacity: 1; transform: scale(1); } 
+            50% { opacity: 0.7; transform: scale(1.05); } 
+            100% { opacity: 1; transform: scale(1); } 
+        }
+        @keyframes flashRedCard { 
+            0% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.2); border-color: rgba(239, 68, 68, 0.3); } 
+            50% { box-shadow: 0 0 25px rgba(239, 68, 68, 0.6); border-color: #ef4444; } 
+            100% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.2); border-color: rgba(239, 68, 68, 0.3); } 
+        }
+    </style>
+</head>
+<body>
+
+    <div id="login-screen">
+        <div class="login-card">
+            <h2><i class="fa-solid fa-heart-pulse"></i> MediTrack</h2>
+            <p style="color: var(--text-muted); margin-bottom: 25px; font-size: 14px;">Secure Doctor Access Portal</p>
+            <input type="email" id="login-email" placeholder="Email Γιατρού">
+            <input type="password" id="login-pass" placeholder="Κωδικός Ασφαλείας">
+            <button onclick="sindesi()">Σύνδεση Συστήματος</button>
+        </div>
+    </div>
+
+    <div class="sidebar">
+        <h3><i class="fa-solid fa-users" style="margin-right: 8px;"></i> Οι Ασθενεις μου</h3>
+        <div id="patients-list"></div>
+        
+        <button onclick="aposindesi()" style="margin: 20px; background: linear-gradient(135deg, var(--danger), #b91c1c); box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);">
+            <i class="fa-solid fa-right-from-bracket" style="margin-right: 8px;"></i> Αποσύνδεση
+        </button>
+    </div>
+
+    <div class="main">
+        <div id="patient-view" style="display:none; animation: fadeIn 0.4s ease-out;">
+            
+            <div class="header">
+                <h1 id="view-name">Επιλέξτε Ασθενή</h1>
+                <p>Λόγος Εισαγωγής: <span id="view-reason">-</span></p>
+            </div>
+
+            <div class="vitals-grid">
+                <div class="card">
+                    <h4><i class="fa-solid fa-droplet" style="color: var(--primary); margin-right: 8px;"></i> Πιεση</h4>
+                    <h2 id="vital-bp">--</h2>
+                </div>
+                <div class="card">
+                    <h4><i class="fa-solid fa-wave-square" style="color: var(--primary); margin-right: 8px;"></i> Παλμοι</h4>
+                    <h2 id="vital-hr">--</h2>
+                </div>
+                <div class="card" id="card-temp" style="transition: all 0.3s ease;">
+                    <h4><i class="fa-solid fa-temperature-half" id="icon-temp" style="color: var(--primary); margin-right: 8px;"></i> Θερμοκρασια</h4>
+                    <h2 id="vital-temp">--</h2>
+                    
+                    <div id="fever-warning" style="display: none; color: #ef4444; font-size: 14px; font-weight: bold; margin-top: 10px; animation: pulseAlert 1s infinite;">
+                        <i class="fa-solid fa-triangle-exclamation"></i> ΠΥΡΕΤΟΣ
+                    </div>
+                </div>
+            </div>
+
+            <div style="display:flex; gap:25px; margin-top:10px;">
+                <div class="card" style="flex:1;">
+    <h3 class="section-label"><i class="fa-solid fa-list-check" style="margin-right: 8px;"></i> Ψηφιακη Εντολη (Tasks)</h3>
+    
+    <input type="text" id="task-type" list="medical-options" oninput="elegxosTupouErgasias()" placeholder="Αναζήτηση φαρμάκου ή εξέτασης...">
+    
+    <datalist id="medical-options">
+        <option value="Salospir" label="Φάρμακο">
+        <option value="Augmentin" label="Φάρμακο">
+        <option value="Depon" label="Φάρμακο">
+        <option value="Panadol" label="Φάρμακο">
+        <option value="Ponstan" label="Φάρμακο">
+        <option value="Nexium" label="Φάρμακο">
+        <option value="Xanax" label="Φάρμακο">
+        <option value="Glucophage" label="Φάρμακο">
+        <option value="Lipitor" label="Φάρμακο">
+        <option value="Crestor" label="Φάρμακο">
+        <option value="Zantac" label="Φάρμακο">
+        <option value="Voltaren" label="Φάρμακο">
+        <option value="Brufen" label="Φάρμακο">
+        <option value="Aerolin" label="Φάρμακο">
+        <option value="Lasix" label="Φάρμακο">
+        <option value="Amoxil" label="Φάρμακο">
+        <option value="Σίδηρος" label="Φάρμακο">
+        <option value="Κορτιζόνη" label="Φάρμακο">
+        <option value="Παυσίπονο (Γενικό)" label="Φάρμακο">
+        <option value="Αντιβίωση (Γενική)" label="Φάρμακο">
+
+        <option value="Γενική Αίματος" label="Εξέταση">
+        <option value="Βιοχημικός Έλεγχος" label="Εξέταση">
+        <option value="Σάκχαρο / Ουρία / Κρεατινίνη" label="Εξέταση">
+        <option value="Χοληστερίνη / Τριγλυκερίδια" label="Εξέταση">
+        <option value="Έλεγχος Ηπατικής Λειτουργίας" label="Εξέταση">
+        <option value="Ηλεκτρολύτες (K, Na)" label="Εξέταση">
+        <option value="ΤΚΕ / CRP" label="Εξέταση">
+        <option value="Γενική Ούρων" label="Εξέταση">
+        <option value="Ακτινογραφία Θώρακος" label="Εξέταση">
+        <option value="Ακτινογραφία Κοιλίας" label="Εξέταση">
+        <option value="Υπέρηχος Άνω Κοιλίας" label="Εξέταση">
+        <option value="Triplex Καρδιάς" label="Εξέταση">
+        <option value="Ηλεκτροκαρδιογράφημα (ΗΚΓ)" label="Εξέταση">
+        <option value="Αξονική Τομογραφία (CT)" label="Εξέταση">
+        <option value="Μαγνητική Τομογραφία (MRI)" label="Εξέταση">
+    </datalist>
+
+    <div style="display: flex; gap: 10px;">
+        <input type="date" id="task-date" style="flex: 2;">
+        <input type="time" id="task-time" style="flex: 1;">
+    </div>
+
+    <div id="dosage-container" style="display: none; margin-top: 5px; animation: fadeIn 0.3s ease-out;">
+        <input type="text" id="task-dosage" placeholder="Δοσολογία (π.χ. 5 ml ή 500 mg)" style="border-color: var(--primary);">
+    </div>
+    
+    <button onclick="prosthikiErgasias()" style="width: 100%; margin-top: 10px;"><i class="fa-solid fa-paper-plane" style="margin-right: 8px;"></i> Αποστολή στο Tablet</button>
+</div>
+
+                <div style="flex:1; display: flex; flex-direction: column; gap: 25px;">
+                    <div class="card" style="flex: 1;">
+                        <h3 class="section-label"><i class="fa-solid fa-stethoscope" style="margin-right: 8px;"></i> Κλινικη Εικονα & Σημειωσεις</h3>
+                        <p id="vital-notes" style="font-size: 16px; line-height: 1.6; color: var(--text-muted); margin: 0;">
+                            Αναμονή δεδομένων...
+                        </p>
+                    </div>
+
+                    <div class="card">
+                        <h3 class="section-label" style="color: var(--text-muted);"><i class="fa-solid fa-right-left" style="margin-right: 8px;"></i> Μεταφορα Ασθενους</h3>
+                        <div style="display: flex; gap: 10px;">
+                            <select id="doctor-list" style="margin: 0;"></select>
+                            <button style="background: linear-gradient(135deg, var(--danger), #b91c1c); box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);" onclick="metaforaAstheni()">Αλλαγή</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        <div style="display: flex; gap: 15px; margin-top: 20px; align-items: stretch; animation: fadeIn 0.4s ease-out;">
+
+            <button onclick="enallagiEpivevaiosisEksitiriou()" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 10px; background: linear-gradient(135deg, #d97706, #b45309); box-shadow: 0 4px 15px rgba(217, 119, 6, 0.4); border: none; padding: 12px 20px; border-radius: 10px; color: #fff; font-weight: 600; cursor: pointer;">
+                <i class="fa-solid fa-door-open"></i> Ιατρική Έγκριση Εξιτηρίου
+            </button>
+
+            <button onclick="enallagiIstorikouZotikon()" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 10px; background: linear-gradient(135deg, #8b5cf6, #6d28d9); box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4); border: none; padding: 12px 20px; border-radius: 10px; color: #fff; font-weight: 600; cursor: pointer;">
+                <i class="fa-solid fa-clock-rotate-left"></i> Ιστορικό Μετρήσεων
+            </button>
+
+            <button onclick="fortosiArxeionAstheni()" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 10px; background: linear-gradient(135deg, var(--success), #059669); box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4); border: none; padding: 12px 20px; border-radius: 10px; color: #fff; font-weight: 600; cursor: pointer;">
+                <i class="fa-solid fa-folder-open"></i> Ιατρικός Φάκελος & Εξετάσεις
+            </button>
+        </div>
+
+        <div style="display: flex; gap: 20px; align-items: flex-start; margin-top: 20px;">
+            
+            <div id="discharge-container" class="card" style="display:none; flex: 1; border: 1px solid #d97706; animation: fadeIn 0.3s ease-out; padding: 20px;">
+                <h3 class="section-label" style="color: #d97706; margin-bottom: 10px;"><i class="fa-solid fa-triangle-exclamation"></i> Επιβεβαιωση</h3>
+                <p style="color: var(--text-main); font-size: 15px; margin-top: 0; margin-bottom: 20px;">
+                    Είστε σίγουρος ότι θέλετε να δώσετε οριστικό εξιτήριο; Το αίτημα θα σταλεί στη Γραμματεία.
+                </p>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="aitimaEksitiriou()" style="background: linear-gradient(135deg, var(--danger), #b91c1c); box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4); flex: 1;">
+                        <i class="fa-solid fa-check"></i> Ναι, Εξιτήριο
+                    </button>
+                    <button onclick="enallagiEpivevaiosisEksitiriou()" style="background: rgba(255,255,255,0.05); border: 1px solid var(--text-muted); color: var(--text-main); box-shadow: none; flex: 1;">
+                        Ακύρωση
+                    </button>
+                </div>
+            </div>
+
+            <div id="vitals-history-container" class="card" style="display:none; flex: 1; margin-top: 0; animation: fadeIn 0.3s ease-out; max-height: 400px; overflow-y: auto;">
+                <h3 class="section-label" style="color: #8b5cf6;"><i class="fa-solid fa-clock-rotate-left" style="margin-right: 8px;"></i> Ιστορικο Ζωτικων Σημειων</h3>
+                <ul id="vitals-history-list"></ul>
+            </div>
+
+            <div id="files-container" class="card" style="display:none; flex: 1; margin-top: 0; animation: fadeIn 0.3s ease-out;">
+                <h3 class="section-label">Αναλυτικα Αρχεια</h3>
+                <ul id="files-list"></ul>
+            </div>
+        </div>
+
+        </div>
+    </div>
+
+    <script>
+        const rythmiseisFirebase = {
+            apiKey: "YOUR_API_KEY_HERE",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket:"YOUR_PROJECT_ID.firebasestorage.app" ,
+            messagingSenderId:"YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        let trexonGiatrosId = "";
+        let trexonAsthenisId = "";
+
+        let akiroseisZotikon = {}; 
+        let teleftaiesThermokrasies = {};
+
+        auth.onAuthStateChanged(xristis => {
+            if (xristis) {
+                document.getElementById('login-screen').style.display = 'none';
+                trexonGiatrosId = xristis.uid;
+                fortosiAsthenon();
+                fortosiGiatron();
+            } else {
+                document.getElementById('login-screen').style.display = 'flex';
+                document.getElementById('patient-view').style.display = 'none';
+                document.getElementById('patients-list').innerHTML = "";
+                trexonGiatrosId = "";
+            }
+        });
+
+        function sindesi() {
+            const emailXristi = document.getElementById('login-email').value;
+            const kodikosXristi = document.getElementById('login-pass').value;
+            auth.signInWithEmailAndPassword(emailXristi, kodikosXristi).catch(sfalma => alert("Λάθος στοιχεία ή κωδικός!"));
+        }
+
+        function aposindesi() {
+            auth.signOut().then(() => {
+                document.getElementById('login-email').value = "";
+                document.getElementById('login-pass').value = "";
+            }).catch(sfalma => alert("Σφάλμα αποσύνδεσης: " + sfalma.message));
+        }
+        
+        function fortosiAsthenon() {
+            db.collection("patients").where("doctorId", "==", trexonGiatrosId)
+                .onSnapshot(stigmiotipo => {
+                    const lista = document.getElementById('patients-list');
+                    lista.innerHTML = "";
+                    const energaId = [];
+
+                    stigmiotipo.forEach(eggrafo => {
+                        const dedomenaAstheni = eggrafo.data();
+                        const idAstheni = eggrafo.id;
+                        
+                        if (dedomenaAstheni.isActive === false) return; 
+                        energaId.push(idAstheni);
+
+                        const kouti = document.createElement('div');
+                        kouti.className = 'patient-item';
+                        if (trexonAsthenisId === idAstheni) kouti.classList.add('active'); 
+                        kouti.onclick = () => provoliAstheni(idAstheni);
+                        
+                        let eikonidio = dedomenaAstheni.dischargeRequested 
+                            ? '<i class="fa-solid fa-door-open" style="color: var(--warning); margin-right: 12px;"></i>' 
+                            : '<i class="fa-solid fa-bed-pulse" style="margin-right: 12px; font-size: 14px; opacity: 0.7;"></i>';
+
+                        kouti.innerHTML = `
+                            <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                                <span>${eikonidio} ${dedomenaAstheni.name}</span>
+                                <span id="fever-alert-${idAstheni}"></span>
+                            </div>
+                        `;
+                        lista.appendChild(kouti);
+
+                        if (!akiroseisZotikon[idAstheni]) {
+                            akiroseisZotikon[idAstheni] = db.collection("patients").doc(idAstheni).collection("vitals")
+                                .orderBy("timestamp", "desc").limit(1)
+                                .onSnapshot(stigmiotipoZotikon => {
+                                    if (!stigmiotipoZotikon.empty) {
+                                        const dedomenaZotikon = stigmiotipoZotikon.docs[0].data();
+                                        const thermokrasia = parseFloat(dedomenaZotikon.temp);
+                                        teleftaiesThermokrasies[idAstheni] = thermokrasia;
+                                        
+                                        const koutiEidopoiisis = document.getElementById(`fever-alert-${idAstheni}`);
+                                        if (koutiEidopoiisis) {
+                                            if (thermokrasia > 38) {
+                                                koutiEidopoiisis.innerHTML = `<span style="color: #ef4444; background: rgba(239,68,68,0.1); padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; animation: pulseAlert 1s infinite;"><i class="fa-solid fa-fire"></i> ${thermokrasia}°C</span>`;
+                                            } else {
+                                                koutiEidopoiisis.innerHTML = '';
+                                            }
+                                        }
+
+                                        if (trexonAsthenisId === idAstheni) {
+                                            elegxosPiretouVasikiOthoni(thermokrasia);
+                                        }
+                                    }
+                                });
+                        } else {
+                            const koutiEidopoiisis = document.getElementById(`fever-alert-${idAstheni}`);
+                            if (teleftaiesThermokrasies[idAstheni] > 38 && koutiEidopoiisis) {
+                                koutiEidopoiisis.innerHTML = `<span style="color: #ef4444; background: rgba(239,68,68,0.1); padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; animation: pulseAlert 1s infinite;"><i class="fa-solid fa-fire"></i> ${teleftaiesThermokrasies[idAstheni]}°C</span>`;
+                            }
+                        }
+                    });
+
+                    Object.keys(akiroseisZotikon).forEach(toId => {
+                        if (!energaId.includes(toId)) {
+                            akiroseisZotikon[toId](); 
+                            delete akiroseisZotikon[toId];
+                            delete teleftaiesThermokrasies[toId];
+                        }
+                    });
+                });
+        }
+
+        function provoliAstheni(astheniId) {
+            document.getElementById('files-container').style.display = 'none';
+            const koutiEksitiriou = document.getElementById('discharge-container');
+            if(koutiEksitiriou) koutiEksitiriou.style.display = 'none'; 
+            const koutiIstorikouZotikon = document.getElementById('vitals-history-container');
+            if(koutiIstorikouZotikon) koutiIstorikouZotikon.style.display = 'none'; 
+
+            trexonAsthenisId = astheniId;
+            document.getElementById('patient-view').style.display = 'block';
+            
+            document.querySelectorAll('.patient-item').forEach(stoixeio => stoixeio.classList.remove('active'));
+            const patimenoStoixeio = document.getElementById(`fever-alert-${astheniId}`)?.parentElement?.parentElement;
+            if (patimenoStoixeio) patimenoStoixeio.classList.add('active');
+
+            db.collection("patients").doc(astheniId).get().then(stigmiotipoEggrafou => {
+                if (stigmiotipoEggrafou.exists) {
+                    const dedomenaAstheni = stigmiotipoEggrafou.data();
+                    document.getElementById('view-name').innerText = dedomenaAstheni.name || "Άγνωστο Όνομα";
+                    document.getElementById('view-reason').innerText = dedomenaAstheni.reason || "Δεν έχει δηλωθεί αιτία";
+                }
+            });
+
+            db.collection("patients").doc(astheniId).collection("vitals")
+                .orderBy("timestamp", "desc").limit(1)
+                .onSnapshot(stigmiotipo => {
+                    if (!stigmiotipo.empty) {
+                        const dedomenaZotikon = stigmiotipo.docs[0].data();
+                        
+                        document.getElementById('vital-bp').innerText = (dedomenaZotikon.sys && dedomenaZotikon.dia) ? dedomenaZotikon.sys + "/" + dedomenaZotikon.dia : "--";
+                        document.getElementById('vital-hr').innerText = dedomenaZotikon.hr ? dedomenaZotikon.hr + " bpm" : "--";
+                        document.getElementById('vital-temp').innerText = dedomenaZotikon.temp ? dedomenaZotikon.temp + " °C" : "--";
+
+                        if (dedomenaZotikon.temp) elegxosPiretouVasikiOthoni(parseFloat(dedomenaZotikon.temp));
+
+                        const pedioSimeioseon = document.getElementById('vital-notes');
+                        if (dedomenaZotikon.notes && dedomenaZotikon.notes.trim() !== "") {
+                            pedioSimeioseon.innerText = dedomenaZotikon.notes;
+                            pedioSimeioseon.style.color = "var(--text-main)"; 
+                        } else {
+                            pedioSimeioseon.innerText = "Δεν υπάρχουν σημειώσεις.";
+                            pedioSimeioseon.style.color = "var(--text-muted)"; 
+                        }
+                    }
+                });
+        }
+
+        function elegxosPiretouVasikiOthoni(timiThermokrasias) {
+            const kartaThermokrasias = document.getElementById('card-temp');
+            const eikonidioThermokrasias = document.getElementById('icon-temp');
+            const eidopoiisiPiretou = document.getElementById('fever-warning');
+            const keimenoThermokrasiasZotikon = document.getElementById('vital-temp');
+
+            keimenoThermokrasiasZotikon.innerText = timiThermokrasias + " °C";
+
+            if (timiThermokrasias > 38) {
+                kartaThermokrasias.style.animation = "flashRedCard 1.5s infinite";
+                keimenoThermokrasiasZotikon.style.color = "#ef4444";
+                eikonidioThermokrasias.style.color = "#ef4444";
+                eidopoiisiPiretou.style.display = "block";
+            } else {
+                kartaThermokrasias.style.animation = "none";
+                keimenoThermokrasiasZotikon.style.color = "#fff";
+                eikonidioThermokrasias.style.color = "var(--primary)";
+                eidopoiisiPiretou.style.display = "none";
+            }
+        }
+
+        function enallagiEpivevaiosisEksitiriou() {
+            const periektis = document.getElementById('discharge-container');
+            document.getElementById('files-container').style.display = 'none';
+            document.getElementById('vitals-history-container').style.display = 'none'; 
+            periektis.style.display = periektis.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function aitimaEksitiriou() {
+            const koutiEksitiriou = document.getElementById('discharge-container'); 
+
+            db.collection("patients").doc(trexonAsthenisId).update({ dischargeRequested: true })
+                .then(() => {
+                    koutiEksitiriou.innerHTML = `<div style="text-align: center; color: var(--success); font-weight: 600; padding: 20px;"><i class="fa-solid fa-check-circle" style="font-size: 24px; margin-right: 10px;"></i> Το αίτημα στάλθηκε στη Γραμματεία.</div>`;
+                    setTimeout(() => { koutiEksitiriou.style.display = 'none'; }, 2000);
+                })
+                .catch(sfalma => alert("Σφάλμα: " + sfalma.message));
+        }
+
+        function elegxosTupouErgasias() {
+            const timiEisagogou = document.getElementById('task-type').value;
+            const epiloges = document.getElementById('medical-options').options;
+            let einaiFarmako = false;
+
+            for (let i = 0; i < epiloges.length; i++) {
+                if (epiloges[i].value === timiEisagogou) {
+                    if (epiloges[i].label === "Φάρμακο") {
+                        einaiFarmako = true;
+                    }
+                    break;
+                }
+            }
+
+            const koutiDosologias = document.getElementById('dosage-container');
+            if (einaiFarmako) {
+                koutiDosologias.style.display = 'block'; 
+            } else {
+                koutiDosologias.style.display = 'none';  
+                document.getElementById('task-dosage').value = ""; 
+            }
+        }
+
+        function prosthikiErgasias() {
+            const imerominiaEisagogi = document.getElementById('task-date').value; 
+            const oraEisagogi = document.getElementById('task-time').value; 
+            const typosErgasiasEisagogi = document.getElementById('task-type'); 
+            const typosErgasias = typosErgasiasEisagogi.value; 
+            const dosologiaEisagogi = document.getElementById('task-dosage').value;
+            const koutiDosologias = document.getElementById('dosage-container');
+
+            if(!imerominiaEisagogi || !oraEisagogi || !typosErgasias) {
+                return alert("Παρακαλώ συμπληρώστε εντολή, ημερομηνία και ώρα!");
+            }
+
+            const listaDedomonon = document.getElementById('medical-options');
+            const epiloges = listaDedomonon.getElementsByTagName('option');
+            let einaiEgyro = false;
+            let einaiFarmako = false;
+
+            for (let i = 0; i < epiloges.length; i++) {
+                if (epiloges[i].value === typosErgasias) {
+                    einaiEgyro = true;
+                    if(epiloges[i].label === "Φάρμακο") einaiFarmako = true;
+                    break;
+                }
+            }
+
+            if (!einaiEgyro) {
+                return alert("Σφάλμα: Η εντολή δεν βρέθηκε! Παρακαλώ επιλέξτε από τη λίστα.");
+            }
+
+            if (einaiFarmako && !dosologiaEisagogi) {
+                return alert("Παρακαλώ συμπληρώστε τη δοσολογία (π.χ. 5 ml ή 1 χάπι)!");
+            }
+
+            const tmimata = imerominiaEisagogi.split("-");
+            const morfopoiimeniImerominia = `${parseInt(tmimata[2])}-${parseInt(tmimata[1])}-${tmimata[0]}`; 
+            
+            let telikoOnomaErgasias = typosErgasias;
+            if (einaiFarmako) {
+                telikoOnomaErgasias += ` (${dosologiaEisagogi})`;
+            }
+
+            const ergasiaMeOra = oraEisagogi + " - " + telikoOnomaErgasias;
+
+            const enimerosi = {};
+            enimerosi[ergasiaMeOra] = false;
+
+            db.collection("patients").doc(trexonAsthenisId)
+                .collection("schedule").doc(morfopoiimeniImerominia).set(enimerosi, {merge: true})
+                .then(() => {
+                    alert("Η εντολή στάλθηκε στο Tablet:\n" + ergasiaMeOra);
+                    typosErgasiasEisagogi.value = ""; 
+                    document.getElementById('task-time').value = ""; 
+                    document.getElementById('task-dosage').value = "";
+                    koutiDosologias.style.display = 'none'; 
+                })
+                .catch(sfalma => alert("Σφάλμα: " + sfalma.message));
+        }
+
+        function fortosiGiatron() {
+            db.collection("doctors").get().then(stigmiotipo => {
+                const epilogis = document.getElementById('doctor-list');
+                epilogis.innerHTML = "";
+                stigmiotipo.forEach(eggrafo => {
+                    if(eggrafo.id !== trexonGiatrosId) {
+                        const onomaGiatrou = eggrafo.data().name || "Άγνωστος Γιατρός"; 
+                        epilogis.innerHTML += `<option value="${eggrafo.id}">${onomaGiatrou}</option>`;
+                    }
+                });
+            });
+        }
+
+        function metaforaAstheni() {
+            const epomenosGiatros = document.getElementById('doctor-list').value;
+            if(!epomenosGiatros) return;
+            
+            db.collection("patients").doc(trexonAsthenisId).update({ doctorId: epomenosGiatros })
+                .then(() => {
+                    alert("Ο φάκελος του ασθενούς μεταφέρθηκε επιτυχώς!");
+                    document.getElementById('patient-view').style.display = 'none';
+                });
+        }
+
+        function fortosiArxeionAstheni() {
+            const periektis = document.getElementById('files-container');
+            const lista = document.getElementById('files-list');
+            document.getElementById('discharge-container').style.display = 'none';
+            document.getElementById('vitals-history-container').style.display = 'none'; 
+
+            if (periektis.style.display === 'block') { periektis.style.display = 'none'; return; }
+            periektis.style.display = 'block';
+            lista.innerHTML = "<li style='color: var(--primary); justify-content: center;'><i class='fa-solid fa-spinner fa-spin' style='margin-right: 10px;'></i> Φόρτωση ιατρικού ιστορικού...</li>";
+
+            const anaforaApothekeusis = firebase.storage().ref('patients/' + trexonAsthenisId + '/exams');
+            anaforaApothekeusis.listAll().then((apotelesma) => {
+                lista.innerHTML = ""; 
+                if (apotelesma.items.length === 0) {
+                    lista.innerHTML = "<li style='color: var(--text-muted); justify-content: center;'>Δεν βρέθηκαν ανεβασμένα αρχεία.</li>";
+                    return;
+                }
+                apotelesma.items.forEach((anaforaArxeiou) => {
+                    anaforaArxeiou.getDownloadURL().then((sindesmos) => {
+                        const stoixeioListas = document.createElement('li');
+                        stoixeioListas.innerHTML = `
+                            <span style="display: flex; align-items: center; gap: 10px;"><i class="fa-solid fa-file-pdf" style="color: #ef4444; font-size: 20px;"></i> ${anaforaArxeiou.name}</span>
+                            <a href="${sindesmos}" target="_blank" style="color: var(--primary); text-decoration: none; font-weight: 600; background: rgba(56, 189, 248, 0.1); padding: 8px 16px; border-radius: 20px; transition: 0.3s;"><i class="fa-solid fa-download" style="margin-right: 5px;"></i> Προβολή</a>
+                        `;
+                        lista.appendChild(stoixeioListas);
+                    });
+                });
+            }).catch(() => { lista.innerHTML = "<li style='color: var(--danger); justify-content: center;'>Αποτυχία συγχρονισμού αρχείων.</li>"; });
+        }
+
+        function enallagiIstorikouZotikon() {
+            const periektis = document.getElementById('vitals-history-container');
+            const lista = document.getElementById('vitals-history-list');
+            
+            document.getElementById('files-container').style.display = 'none';
+            document.getElementById('discharge-container').style.display = 'none'; 
+
+            if (periektis.style.display === 'block') { periektis.style.display = 'none'; return; }
+            
+            periektis.style.display = 'block';
+            lista.innerHTML = "<li style='color: #8b5cf6; justify-content: center;'><i class='fa-solid fa-spinner fa-spin' style='margin-right: 10px;'></i> Φόρτωση μετρήσεων...</li>";
+
+            db.collection("patients").doc(trexonAsthenisId).collection("vitals")
+                .orderBy("timestamp", "desc").get()
+                .then(stigmiotipo => {
+                    lista.innerHTML = "";
+                    if (stigmiotipo.empty) {
+                        lista.innerHTML = "<li style='color: var(--text-muted); justify-content: center;'>Δεν υπάρχουν παλαιότερες μετρήσεις.</li>";
+                        return;
+                    }
+                    
+                    stigmiotipo.forEach(eggrafo => {
+                        const dedomenaZotikon = eggrafo.data();
+                        
+                        let alfarithmitikoImerominias = "Άγνωστη ώρα";
+                        if (dedomenaZotikon.timestamp) {
+                            const imerominia = new Date(dedomenaZotikon.timestamp);
+                            alfarithmitikoImerominias = imerominia.toLocaleDateString("el-GR") + " - " + imerominia.toLocaleTimeString("el-GR", {hour: '2-digit', minute:'2-digit'});
+                        }
+
+                        const piesi = (dedomenaZotikon.sys && dedomenaZotikon.dia) ? `${dedomenaZotikon.sys}/${dedomenaZotikon.dia}` : "--";
+                        const palmoi = dedomenaZotikon.hr ? `${dedomenaZotikon.hr} bpm` : "--";
+                        const thermokrasia = dedomenaZotikon.temp ? `${dedomenaZotikon.temp}°C` : "--";
+                        const stilThermokrasias = dedomenaZotikon.temp > 38 ? 'color: #ef4444; font-weight: bold;' : 'color: white;'; 
+
+                        const stoixeioListas = document.createElement('li');
+                        stoixeioListas.style.flexDirection = "column";
+                        stoixeioListas.style.alignItems = "flex-start";
+                        stoixeioListas.style.background = "rgba(0,0,0,0.2)";
+                        stoixeioListas.style.borderRadius = "12px";
+                        stoixeioListas.style.marginBottom = "10px";
+                        stoixeioListas.style.border = "1px solid rgba(255,255,255,0.05)";
+
+                        stoixeioListas.innerHTML = `
+                            <div style="width: 100%; display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px; margin-bottom: 8px;">
+                                <strong style="color: #8b5cf6;"><i class="fa-regular fa-clock"></i> ${alfarithmitikoImerominias}</strong>
+                            </div>
+                            <div style="display: flex; gap: 15px; font-size: 14px;">
+                                <span><i class="fa-solid fa-droplet" style="color:var(--text-muted);"></i> Πίεση: <b>${piesi}</b></span>
+                                <span><i class="fa-solid fa-wave-square" style="color:var(--text-muted);"></i> Παλμοί: <b>${palmoi}</b></span>
+                                <span><i class="fa-solid fa-temperature-half" style="color:var(--text-muted);"></i> Θερμ: <b style="${stilThermokrasias}">${thermokrasia}</b></span>
+                            </div>
+                            ${dedomenaZotikon.notes ? `<div style="margin-top: 8px; font-size: 13px; color: var(--text-muted);"><i class="fa-solid fa-comment-medical"></i> <i>${dedomenaZotikon.notes}</i></div>` : ''}
+                        `;
+                        lista.appendChild(stoixeioListas);
+                    });
+                })
+                .catch(sfalma => {
+                    lista.innerHTML = `<li style='color: var(--danger); justify-content: center;'>Σφάλμα: ${sfalma.message}</li>`;
+                });
+        }
+    </script>
+</body>
+</html>
