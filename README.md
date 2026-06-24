@@ -51,10 +51,10 @@ Since this is a client-side Vanilla JS application, no complex build tools or No
 ```bash
    git clone [https://github.com/YOUR_USERNAME/MediTrack-Web.git](https://github.com/YOUR_USERNAME/MediTrack-Web.git)
 ```
-2.Firebase Configuration:
+2. **Firebase Configuration:**
 The code includes a configuration object. To run this on your own database, simply replace the firebaseConfig variables inside the <script> tags of both dashboard.html and reception.html.
 
-3.Run the App:
+3. **Run the App:**
 It is highly recommended to serve the files using a local server (e.g., the Live Server extension in VS Code) to prevent CORS issues.
 
 Open reception.html for the Admin/Reception panel.
